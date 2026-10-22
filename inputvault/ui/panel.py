@@ -28,7 +28,7 @@ from ..storage import CATEGORY_KINDS, Clip, Storage
 from .clip_list import ClipList, Thumbnails
 from .detail import DetailPane
 from .icons import AppIcons, G, glyph_icon, tile_pixmap
-from .sidebar import CATEGORY_LABELS, OTHERS, Sidebar
+from .sidebar import CATEGORY_LABELS, Sidebar
 from .theme import app_icon, window_stylesheet
 
 _SHADOW = 16  # 四周给阴影留的透明边，也是拖动改变大小的区域
@@ -62,7 +62,7 @@ class Panel(QWidget):
         self.target_exe = ""
         self.target_app = ""
         self.category = "all"
-        self.app_filter: str | None = None  # exe / OTHERS / None
+        self.app_filter: str | None = None  # 只看这个程序（exe），None 表示不限
         self.order = "time"
         self.ascending = False
         self._quick = False  # 快捷键唤起的：失去焦点就收起
@@ -329,20 +329,14 @@ class Panel(QWidget):
     # ---------- 筛选和列表 ----------
 
     def _filter_kwargs(self) -> dict:
-        app = self.app_filter
         return {
-            "source_exe": app if app not in (None, OTHERS) else None,
+            "source_exe": self.app_filter,
             "kinds": CATEGORY_KINDS.get(self.category),
             "favorites_only": self.category == "favorite",
-            "exclude_exes": self.sidebar.top_exes if app == OTHERS else (),
         }
 
     def _app_name(self, exe: str | None) -> str:
-        if exe is None:
-            return "全部应用"
-        if exe == OTHERS:
-            return "其他应用"
-        return friendly_app_name(exe)
+        return "全部应用" if exe is None else friendly_app_name(exe)
 
     def refresh(self, keep_id: int | None = None, keep_index: int | None = None) -> None:
         query = self.search.text()
@@ -367,7 +361,7 @@ class Panel(QWidget):
         self.category = key
         self.refresh()
 
-    def _set_app_filter(self, exe: object) -> None:
+    def _set_app_filter(self, exe: str | None) -> None:
         self.app_filter = exe
         self._update_scope_button()
         self.refresh()
@@ -389,7 +383,7 @@ class Panel(QWidget):
             lambda: self._choose_app(self.target_exe),
         )
         current.setEnabled(bool(self.target_exe))
-        apps = self.storage.app_counts()[:12]
+        apps = self.storage.app_counts()
         if apps:
             menu.addSeparator()
             for exe, name, count in apps:

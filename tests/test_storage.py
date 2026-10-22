@@ -128,8 +128,7 @@ class StorageTest(unittest.TestCase):
                          ["def f(): pass\nreturn 1;", "https://a.com"])
         self.assertEqual(self.db.search(kinds=()), [])
         self.assertEqual([c.id for c in self.db.search(favorites_only=True)], [favorite])
-        others = self.db.search(exclude_exes=("weixin.exe", "MSEDGE.EXE"))
-        self.assertEqual({c.source_exe for c in others}, {"Code.exe", "Notepad.exe"})
+        self.assertEqual(len(self.db.search(source_exe="WEIXIN.exe")), 2)
         self.assertEqual(self.db.count_matching(kinds=("text",)), 3)
         self.assertEqual(self.db.count_matching("微信"), 2)
 

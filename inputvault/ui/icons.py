@@ -51,6 +51,8 @@ class G:
     WINDOW = ""
     HASH = "#"  # 图标字体里没有，自动退回普通字体
     BLOCK = ""
+    MAIL = ""
+    PHONE = ""
     LIST = ""
 
 

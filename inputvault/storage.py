@@ -55,9 +55,13 @@ SOURCE_LABELS = {"copy": "复制", "type": "打字"}
 CATEGORY_KINDS: dict[str, tuple[str, ...]] = {
     "text": ("text",),
     "url": ("url",),
-    "file": ("file", "path"),
+    "file": ("file",),
     "image": ("image",),
-    "other": ("code", "json", "email", "phone", "number"),
+    "path": ("path",),
+    "code": ("code", "json"),
+    "email": ("email",),
+    "phone": ("phone",),
+    "number": ("number",),
 }
 FILTER_KEYS = ("app", "type", "src", "ext")
 _KIND_BY_LABEL = {label.lower(): kind for kind, label in KIND_LABELS.items()}
@@ -233,16 +237,15 @@ class Storage:
         *,
         kinds: tuple[str, ...] | None = None,
         favorites_only: bool = False,
-        exclude_exes: tuple[str, ...] = (),
         order: str = "time",
         ascending: bool = False,
     ) -> list[Clip]:
         """按搜索框内容和面板上选的筛选条件查记录。
 
-        source_exe：只看这个程序里的；kinds：只看这些类型；exclude_exes：排除这些程序（左侧栏的“其他应用”）。
+        source_exe：只看这个程序里的；kinds：只看这些类型。
         order 为 "time" 时按最近使用时间；为 "count" 时按使用次数。
         """
-        where, params = self._where(query, source_exe, kinds, favorites_only, exclude_exes)
+        where, params = self._where(query, source_exe, kinds, favorites_only)
         direction = "ASC" if ascending else "DESC"
         if order == "count":
             order_by = f"use_count {direction}, last_used_at DESC"
@@ -259,10 +262,9 @@ class Storage:
         *,
         kinds: tuple[str, ...] | None = None,
         favorites_only: bool = False,
-        exclude_exes: tuple[str, ...] = (),
     ) -> int:
         """和 search 条件相同的记录总数（不受 limit 限制）。"""
-        where, params = self._where(query, source_exe, kinds, favorites_only, exclude_exes)
+        where, params = self._where(query, source_exe, kinds, favorites_only)
         sql = "SELECT COUNT(*) FROM clips" + (" WHERE " + " AND ".join(where) if where else "")
         return self.conn.execute(sql, params).fetchone()[0]
 
@@ -288,7 +290,6 @@ class Storage:
         source_exe: str | None,
         kinds: tuple[str, ...] | None,
         favorites_only: bool,
-        exclude_exes: tuple[str, ...],
     ) -> tuple[list[str], list[object]]:
         terms, filters = parse_query(query)
         where: list[str] = []
@@ -327,9 +328,6 @@ class Storage:
             params += kinds
         if favorites_only:
             where.append("pinned = 1")
-        if exclude_exes:
-            where.append(f"lower(source_exe) NOT IN ({', '.join('?' * len(exclude_exes))})")
-            params += [e.lower() for e in exclude_exes]
         return where, params
 
 

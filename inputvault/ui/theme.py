@@ -126,6 +126,7 @@ def window_stylesheet(t: dict[str, str]) -> str:
     QLabel#infoKey {{ color: {t['muted']}; }}
     QFrame#divider {{ background: {t['divider']}; max-height: 1px; min-height: 1px; border: none; }}
     QListWidget {{ background: transparent; border: none; outline: none; }}
+    QScrollArea#sidebar, #sidebarInner {{ background: transparent; border: none; }}
     #contentBox {{ background: {t['box']}; border: none; border-radius: 10px; }}
     QPlainTextEdit#content {{
         background: transparent; border: none; padding: 6px; font-size: 14px; color: {t['fg']};
