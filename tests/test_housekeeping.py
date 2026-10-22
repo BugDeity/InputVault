@@ -34,14 +34,14 @@ class QuotaTest(unittest.TestCase):
         enforce_quota(self.db, self.blobs, 1000)
         self.assertEqual(self.db.count(), 1)
 
-    def test_releases_oldest_unpinned_first(self):
-        oldest_pinned = self.image(b"a" * 400, now=1)
-        self.db.toggle_pin(oldest_pinned)
+    def test_releases_oldest_non_favorite_first(self):
+        oldest_favorite = self.image(b"a" * 400, now=1)
+        self.db.toggle_favorite(oldest_favorite)
         old_file = self.file_with_backup(b"b" * 400, now=2, key="f1")
         self.image(b"c" * 400, now=3)  # 最新的
         enforce_quota(self.db, self.blobs, 900)
 
-        self.assertIsNotNone(self.db.get(oldest_pinned))  # 置顶的不动
+        self.assertIsNotNone(self.db.get(oldest_favorite))  # 收藏的不动
         old = self.db.get(old_file)
         self.assertIsNotNone(old)  # 文件记录保留，只去掉副本
         self.assertEqual(old.data["files"][0]["backup"], "")

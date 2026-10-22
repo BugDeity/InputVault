@@ -10,7 +10,7 @@ from .icons import AppIcons, G, draw_glyph
 
 CATEGORIES = [
     ("all", "全部", G.LIST),
-    ("pinned", "置顶", G.PIN),
+    ("favorite", "收藏", G.STAR),
     ("text", "文本", G.DOC),
     ("url", "链接", G.LINK),
     ("file", "文件", G.FOLDER),
@@ -140,14 +140,14 @@ class Sidebar(QWidget):
         """前几名程序，“其他应用”就是排除掉它们。"""
         return self._top_exes
 
-    def set_counts(self, total: int, pinned: int, kind_counts: dict[str, int]) -> None:
+    def set_counts(self, total: int, favorites: int, kind_counts: dict[str, int]) -> None:
         for i in range(self.categories.count()):
             item = self.categories.item(i)
             key = item.data(_KEY)
             if key == "all":
                 count = total
-            elif key == "pinned":
-                count = pinned
+            elif key == "favorite":
+                count = favorites
             else:
                 count = sum(kind_counts.get(k, 0) for k in CATEGORY_KINDS[key])
             item.setData(_COUNT, count)

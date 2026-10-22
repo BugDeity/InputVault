@@ -43,7 +43,7 @@ class Config:
     blacklist_apps: list[str] = field(default_factory=lambda: list(DEFAULT_BLACKLIST))
     skip_sensitive: bool = True  # 身份证、银行卡、API Key、私钥不记录
     max_chars: int = 100_000  # 单条最多保存的字符数
-    retention_days: int = 0  # 超过多少天的记录自动删除（置顶的除外），0 = 永久保留
+    retention_days: int = 0  # 超过多少天的记录自动删除（收藏的除外），0 = 永久保留
     panel_limit: int = 200  # 面板里最多显示多少条
     capture_typing: bool = True  # 记录打字输入
     typing_blacklist_apps: list[str] = field(default_factory=lambda: list(DEFAULT_TYPING_BLACKLIST))

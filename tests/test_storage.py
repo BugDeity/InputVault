@@ -47,23 +47,25 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(self.db.search("type:url")), 1)
         self.assertEqual(len(self.db.search("type:url app:微信")), 0)
 
-    def test_order_pinned_first_then_recent(self):
+    def test_favorite_does_not_jump_to_top(self):
         old = self.db.add("旧内容", now=100)
         self.db.add("新内容", now=200)
-        self.assertEqual(self.db.search()[0].content, "新内容")
-        self.db.toggle_pin(old)
-        self.assertEqual(self.db.search()[0].id, old)
-        self.db.touch(self.db.search()[1].id, now=300)
-        self.assertEqual(self.db.search()[0].id, old)
+        self.db.toggle_favorite(old)
+        self.assertTrue(self.db.get(old).favorite)
+        self.assertEqual(self.db.search()[0].content, "新内容")  # 收藏不改变顺序
+        self.assertEqual([c.id for c in self.db.search(favorites_only=True)], [old])
+        self.db.toggle_favorite(old)
+        self.assertFalse(self.db.get(old).favorite)
+        self.assertEqual(self.db.favorite_count(), 0)
 
     def test_delete_removes_from_index(self):
         cid = self.db.add("要删除的内容")
         self.db.delete(cid)
         self.assertEqual(self.db.search("要删除的"), [])
 
-    def test_prune_keeps_pinned(self):
-        keep = self.db.add("置顶的旧内容", now=0)
-        self.db.toggle_pin(keep)
+    def test_prune_keeps_favorites(self):
+        keep = self.db.add("收藏的旧内容", now=0)
+        self.db.toggle_favorite(keep)
         self.db.add("普通旧内容", now=0)
         self.db.add("新内容", now=40 * 86400)
         removed = self.db.prune(30, now=40 * 86400)
@@ -113,11 +115,11 @@ class StorageTest(unittest.TestCase):
         self.db.add("def f(): pass\nreturn 1;", kind="code", source_app="VS Code", source_exe="Code.exe", now=300)
         self.db.add("微信里的一句话", source_app="微信", source_exe="Weixin.exe", now=400)  # 用过 2 次
         self.db.add("微信里的另一条", source_app="微信", source_exe="WeiXin.exe", now=150)
-        pinned = self.db.add("置顶的笔记", source_exe="Notepad.exe", now=50)
-        self.db.toggle_pin(pinned)
+        favorite = self.db.add("收藏的笔记", source_exe="Notepad.exe", now=50)
+        self.db.toggle_favorite(favorite)
 
         self.assertEqual(self.db.kind_counts(), {"text": 3, "url": 1, "code": 1})
-        self.assertEqual(self.db.pinned_count(), 1)
+        self.assertEqual(self.db.favorite_count(), 1)
         exe, app, n = self.db.app_counts()[0]  # exe 大小写不同也算同一个程序
         self.assertEqual((exe.lower(), app, n), ("weixin.exe", "微信", 2))
         self.assertEqual(len(self.db.app_counts()), 4)
@@ -125,17 +127,16 @@ class StorageTest(unittest.TestCase):
         self.assertEqual([c.content for c in self.db.search(kinds=("url", "code"))],
                          ["def f(): pass\nreturn 1;", "https://a.com"])
         self.assertEqual(self.db.search(kinds=()), [])
-        self.assertEqual([c.id for c in self.db.search(pinned_only=True)], [pinned])
+        self.assertEqual([c.id for c in self.db.search(favorites_only=True)], [favorite])
         others = self.db.search(exclude_exes=("weixin.exe", "MSEDGE.EXE"))
         self.assertEqual({c.source_exe for c in others}, {"Code.exe", "Notepad.exe"})
         self.assertEqual(self.db.count_matching(kinds=("text",)), 3)
         self.assertEqual(self.db.count_matching("微信"), 2)
 
         by_time = [c.content for c in self.db.search()]
-        self.assertEqual(by_time[0], "置顶的笔记")  # 置顶的永远在最前
-        self.assertEqual(by_time[1], "微信里的一句话")
+        self.assertEqual(by_time[:2], ["微信里的一句话", "def f(): pass\nreturn 1;"])
         oldest_first = [c.content for c in self.db.search(ascending=True)]
-        self.assertEqual(oldest_first[1:3], ["微信里的另一条", "https://a.com"])
+        self.assertEqual(oldest_first[:3], ["收藏的笔记", "微信里的另一条", "https://a.com"])
         self.assertEqual(self.db.search(order="count")[0].content, "微信里的一句话")
 
     def test_filter_by_exe_and_delete_by_exe(self):
@@ -161,7 +162,7 @@ CREATE VIRTUAL TABLE clips_fts USING fts5(content, content='clips', content_rowi
 CREATE TRIGGER clips_ai AFTER INSERT ON clips BEGIN
     INSERT INTO clips_fts(rowid, content) VALUES (new.id, new.content);
 END;
-INSERT INTO clips (content, content_hash, created_at, last_used_at) VALUES ('v0.1 时代的旧记录', 'h1', 1, 1);
+INSERT INTO clips (content, content_hash, created_at, last_used_at, pinned) VALUES ('v0.1 时代的旧记录', 'h1', 1, 1, 1);
 """
 
 
@@ -178,6 +179,7 @@ class MigrationTest(unittest.TestCase):
             self.assertEqual(len(old), 1)
             self.assertEqual(old[0].source, "copy")
             self.assertEqual(old[0].payload, "")
+            self.assertTrue(old[0].favorite)  # 以前置顶的，升级后就是收藏
             db.add("升级后打的字", source="type")
             self.assertEqual(len(db.search("src:打字")), 1)
             db.close()

@@ -32,7 +32,7 @@ def _release(storage: Storage, clip: Clip) -> set[str]:
 
 
 def enforce_quota(storage: Storage, blobs: BlobStore, quota_bytes: int) -> int:
-    """先清掉没人引用的文件；还超出上限就从最久没用的记录开始释放（置顶的不动）。返回释放的字节数。"""
+    """先清掉没人引用的文件；还超出上限就从最久没用的记录开始释放（收藏的不动）。返回释放的字节数。"""
     clips = storage.attachment_clips()
     freed = blobs.gc(referenced_names(clips))
     total = blobs.total_size()
@@ -44,7 +44,7 @@ def enforce_quota(storage: Storage, blobs: BlobStore, quota_bytes: int) -> int:
     for clip in clips:  # 最久没用的在前
         if total <= quota_bytes:
             break
-        if clip.pinned:
+        if clip.favorite:
             continue
         names = _release(storage, clip)
         released += bool(names)

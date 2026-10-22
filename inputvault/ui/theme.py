@@ -24,6 +24,7 @@ LIGHT = {
     "box": "#F5F7FB",
     "search_border": "#C9D9F6",
     "danger": "#E5484D",
+    "star": "#F5A623",  # 收藏的星标
     # 类型图标的底色 / 图标色
     "tile_blue": "#EAF2FF",
     "tile_blue_fg": "#2F7BF6",
@@ -56,6 +57,7 @@ DARK = {
     "box": "#1C1F25",
     "search_border": "#3A4A66",
     "danger": "#FF6B6B",
+    "star": "#FFC24D",
     "tile_blue": "#233452",
     "tile_blue_fg": "#7FB0FF",
     "tile_folder": "#3D3220",

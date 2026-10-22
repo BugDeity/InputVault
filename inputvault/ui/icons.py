@@ -28,7 +28,6 @@ class G:
     FOLDER_OPEN = ""
     PHOTO = ""
     MORE = ""
-    PIN = ""
     STAR = ""
     STAR_FILL = ""
     COPY = ""

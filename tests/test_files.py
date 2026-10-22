@@ -15,7 +15,7 @@ from inputvault.storage import Clip
 
 def make_clip(kind, data, created_at=0.0):
     return Clip(id=1, content="", kind=kind, source="copy", source_app="", source_exe="", window_title="",
-                created_at=created_at, last_used_at=0, use_count=1, pinned=False, payload=json.dumps(data))
+                created_at=created_at, last_used_at=0, use_count=1, favorite=False, payload=json.dumps(data))
 
 
 class TempDirTest(unittest.TestCase):

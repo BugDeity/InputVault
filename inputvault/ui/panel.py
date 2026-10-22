@@ -333,7 +333,7 @@ class Panel(QWidget):
         return {
             "source_exe": app if app not in (None, OTHERS) else None,
             "kinds": CATEGORY_KINDS.get(self.category),
-            "pinned_only": self.category == "pinned",
+            "favorites_only": self.category == "favorite",
             "exclude_exes": self.sidebar.top_exes if app == OTHERS else (),
         }
 
@@ -360,7 +360,7 @@ class Panel(QWidget):
             self._show_current()
 
     def refresh_sidebar(self) -> None:
-        self.sidebar.set_counts(self.storage.count(), self.storage.pinned_count(), self.storage.kind_counts())
+        self.sidebar.set_counts(self.storage.count(), self.storage.favorite_count(), self.storage.kind_counts())
         self.sidebar.set_apps(self.storage.app_counts())
 
     def _set_category(self, key: str) -> None:
@@ -455,8 +455,8 @@ class Panel(QWidget):
             self.openSourceRequested.emit(clip)
         elif action == "save_image" and clip.kind == "image":
             self.saveImageRequested.emit(clip)
-        elif action == "pin":
-            self.storage.toggle_pin(clip.id)
+        elif action == "favorite":
+            self.storage.toggle_favorite(clip.id)
             self.refresh(keep_id=clip.id)
             self.refresh_sidebar()
         elif action == "delete":
@@ -486,7 +486,7 @@ class Panel(QWidget):
         if clip.source_exe:
             add("打开来源应用", G.OPEN, "open_source")
         menu.addSeparator()
-        add("取消置顶\tCtrl+P" if clip.pinned else "置顶\tCtrl+P", G.PIN, "pin")
+        add("取消收藏\tCtrl+P" if clip.favorite else "收藏\tCtrl+P", G.STAR, "favorite")
         add("删除\tCtrl+D", G.DELETE, "delete")
         if clip.source_exe:
             menu.addSeparator()
@@ -520,7 +520,7 @@ class Panel(QWidget):
             if key == Qt.Key.Key_Escape:
                 self.hide()
                 return True
-            shortcuts = {Qt.Key.Key_O: "open_location", Qt.Key.Key_P: "pin", Qt.Key.Key_D: "delete"}
+            shortcuts = {Qt.Key.Key_O: "open_location", Qt.Key.Key_P: "favorite", Qt.Key.Key_D: "delete"}
             if ctrl and key in shortcuts:
                 self._do(shortcuts[key])
                 return True

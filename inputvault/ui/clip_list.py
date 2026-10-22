@@ -191,8 +191,8 @@ class _Delegate(QStyledItemDelegate):
         fm = painter.fontMetrics()
         title_top = r.top() + 12
         x = left
-        if clip.pinned:
-            draw_glyph(painter, QRect(x, title_top, 16, fm.height()), G.PIN, self.t["accent"], 13)
+        if clip.favorite:
+            draw_glyph(painter, QRect(x, title_top, 16, fm.height()), G.STAR_FILL, self.t["star"], 13)
             x += 18
         painter.setPen(QColor(self.t["fg"]))
         title = index.data(_ROW)
@@ -240,7 +240,7 @@ class ClipList(QListWidget):
         last_group = None
         for clip in clips:
             if group_by_day:
-                group = "置顶" if clip.pinned else day_label(clip.last_used_at)
+                group = day_label(clip.last_used_at)
                 if group != last_group:
                     header = QListWidgetItem()
                     header.setData(_HEADER, group)

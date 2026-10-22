@@ -68,7 +68,7 @@ class _ElidedLabel(QLabel):
 
 
 class DetailPane(QFrame):
-    # "paste" / "copy" / "paste_file" / "open_source" / "open_location" / "save_image" / "pin"
+    # "paste" / "copy" / "paste_file" / "open_source" / "open_location" / "save_image" / "favorite"
     action = Signal(str)
 
     def __init__(self, theme: dict[str, str], thumbs: Thumbnails, restorer: Restorer,
@@ -99,7 +99,7 @@ class DetailPane(QFrame):
         self.tile.setFixedSize(46, 46)
         self.title = _ElidedLabel()
         self.title.setObjectName("h2")
-        self.star = self._flat_button(G.STAR, "置顶（Ctrl+P）", lambda: self.action.emit("pin"))
+        self.star = self._flat_button(G.STAR, "收藏（Ctrl+P）", lambda: self.action.emit("favorite"))
         self.more = self._flat_button(G.MORE, "更多操作", self._show_menu)
         title_row = QHBoxLayout()
         title_row.setSpacing(4)
@@ -224,9 +224,9 @@ class DetailPane(QFrame):
         ratio = self.devicePixelRatioF()
         self.tile.setPixmap(self.thumbs.tile(clip, 46, ratio, solid=True))
         self.title.set_full_text(clip_title(clip))
-        self.star.setIcon(glyph_icon(G.STAR_FILL if clip.pinned else G.STAR,
-                                     self.t["accent"] if clip.pinned else self.t["fg_soft"], 18))
-        self.star.setToolTip("取消置顶（Ctrl+P）" if clip.pinned else "置顶（Ctrl+P）")
+        self.star.setIcon(glyph_icon(G.STAR_FILL if clip.favorite else G.STAR,
+                                     self.t["star"] if clip.favorite else self.t["fg_soft"], 18))
+        self.star.setToolTip("取消收藏（Ctrl+P）" if clip.favorite else "收藏（Ctrl+P）")
         self.source_chip.setText(SOURCE_LABELS.get(clip.source, clip.source))
         glyph, _ = visual_for(clip)
         self.kind_icon.setPixmap(glyph_pixmap(glyph, self.t["muted"], 14, ratio))

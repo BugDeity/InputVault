@@ -26,10 +26,12 @@ CREATE TABLE IF NOT EXISTS clips (
     created_at   REAL    NOT NULL,
     last_used_at REAL    NOT NULL,
     use_count    INTEGER NOT NULL DEFAULT 1,
-    pinned       INTEGER NOT NULL DEFAULT 0,
+    pinned       INTEGER NOT NULL DEFAULT 0,  -- 收藏（早期版本叫“置顶”，列名沿用）
     payload      TEXT    NOT NULL DEFAULT ''
 );
-CREATE INDEX IF NOT EXISTS idx_clips_order ON clips(pinned DESC, last_used_at DESC);
+-- 早期版本收藏的记录排在最前，用的是 (pinned, last_used_at) 索引；现在只按时间排
+DROP INDEX IF EXISTS idx_clips_order;
+CREATE INDEX IF NOT EXISTS idx_clips_recent ON clips(last_used_at DESC);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS clips_fts USING fts5(
     content, content='clips', content_rowid='id', tokenize='trigram'
@@ -74,7 +76,7 @@ class Clip:
     created_at: float
     last_used_at: float
     use_count: int
-    pinned: bool
+    favorite: bool
     payload: str = ""
 
     @property
@@ -193,7 +195,7 @@ class Storage:
         )
         self.conn.commit()
 
-    def toggle_pin(self, clip_id: int) -> None:
+    def toggle_favorite(self, clip_id: int) -> None:
         self.conn.execute("UPDATE clips SET pinned = 1 - pinned WHERE id = ?", (clip_id,))
         self.conn.commit()
 
@@ -214,7 +216,7 @@ class Storage:
         return cur.rowcount
 
     def prune(self, older_than_days: int, now: float | None = None) -> int:
-        """删除超过保留期限的记录（置顶的不删），返回删除条数。"""
+        """删除超过保留期限的记录（收藏的不删），返回删除条数。"""
         now = time.time() if now is None else now
         cur = self.conn.execute(
             "DELETE FROM clips WHERE pinned = 0 AND last_used_at < ?",
@@ -230,7 +232,7 @@ class Storage:
         source_exe: str | None = None,
         *,
         kinds: tuple[str, ...] | None = None,
-        pinned_only: bool = False,
+        favorites_only: bool = False,
         exclude_exes: tuple[str, ...] = (),
         order: str = "time",
         ascending: bool = False,
@@ -238,14 +240,14 @@ class Storage:
         """按搜索框内容和面板上选的筛选条件查记录。
 
         source_exe：只看这个程序里的；kinds：只看这些类型；exclude_exes：排除这些程序（左侧栏的“其他应用”）。
-        order 为 "time" 时置顶的排最前、再按最近使用时间；为 "count" 时按使用次数。
+        order 为 "time" 时按最近使用时间；为 "count" 时按使用次数。
         """
-        where, params = self._where(query, source_exe, kinds, pinned_only, exclude_exes)
+        where, params = self._where(query, source_exe, kinds, favorites_only, exclude_exes)
         direction = "ASC" if ascending else "DESC"
         if order == "count":
             order_by = f"use_count {direction}, last_used_at DESC"
         else:
-            order_by = f"pinned DESC, last_used_at {direction}"
+            order_by = f"last_used_at {direction}"
         sql = "SELECT * FROM clips" + (" WHERE " + " AND ".join(where) if where else "")
         sql += f" ORDER BY {order_by} LIMIT ?"
         return [_to_clip(row) for row in self.conn.execute(sql, [*params, limit])]
@@ -256,18 +258,18 @@ class Storage:
         source_exe: str | None = None,
         *,
         kinds: tuple[str, ...] | None = None,
-        pinned_only: bool = False,
+        favorites_only: bool = False,
         exclude_exes: tuple[str, ...] = (),
     ) -> int:
         """和 search 条件相同的记录总数（不受 limit 限制）。"""
-        where, params = self._where(query, source_exe, kinds, pinned_only, exclude_exes)
+        where, params = self._where(query, source_exe, kinds, favorites_only, exclude_exes)
         sql = "SELECT COUNT(*) FROM clips" + (" WHERE " + " AND ".join(where) if where else "")
         return self.conn.execute(sql, params).fetchone()[0]
 
     def kind_counts(self) -> dict[str, int]:
         return dict(self.conn.execute("SELECT kind, COUNT(*) FROM clips GROUP BY kind"))
 
-    def pinned_count(self) -> int:
+    def favorite_count(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM clips WHERE pinned = 1").fetchone()[0]
 
     def app_counts(self) -> list[tuple[str, str, int]]:
@@ -285,7 +287,7 @@ class Storage:
         query: str,
         source_exe: str | None,
         kinds: tuple[str, ...] | None,
-        pinned_only: bool,
+        favorites_only: bool,
         exclude_exes: tuple[str, ...],
     ) -> tuple[list[str], list[object]]:
         terms, filters = parse_query(query)
@@ -323,7 +325,7 @@ class Storage:
         if kinds is not None:
             where.append(f"kind IN ({', '.join('?' * len(kinds))})" if kinds else "0")
             params += kinds
-        if pinned_only:
+        if favorites_only:
             where.append("pinned = 1")
         if exclude_exes:
             where.append(f"lower(source_exe) NOT IN ({', '.join('?' * len(exclude_exes))})")
@@ -343,6 +345,6 @@ def _to_clip(row: sqlite3.Row) -> Clip:
         created_at=row["created_at"],
         last_used_at=row["last_used_at"],
         use_count=row["use_count"],
-        pinned=bool(row["pinned"]),
+        favorite=bool(row["pinned"]),
         payload=row["payload"],
     )
