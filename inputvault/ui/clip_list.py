@@ -252,6 +252,16 @@ class ClipList(QListWidget):
             item.setData(_ROW, clip_title(clip))
             self.addItem(item)
 
+    def replace_clip(self, clip: Clip) -> bool:
+        """把列表里同一条记录换成新数据（位置不变）。返回这条是不是当前选中的。"""
+        for i in range(self.count()):
+            item = self.item(i)
+            old = item.data(_CLIP)
+            if old is not None and old.id == clip.id:
+                item.setData(_CLIP, clip)
+                return item is self.currentItem()
+        return False
+
     def current_clip(self) -> Clip | None:
         item = self.currentItem()
         return item.data(_CLIP) if item else None

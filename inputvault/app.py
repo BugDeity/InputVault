@@ -155,8 +155,11 @@ class Controller(QObject):
     # ---------- 还原 ----------
 
     def deliver(self, clip: Clip, paste: bool, as_file: bool = False) -> None:
-        """把记录还原到剪贴板；paste 为真时切回原窗口并模拟 Ctrl+V。"""
-        self.panel.hide()
+        """把记录还原到剪贴板。
+
+        paste 为真（引用到输入框）：收起窗口、切回原窗口并模拟 Ctrl+V；
+        只复制：窗口留着，底部提示“已复制”，方便接着复制下一条。
+        """
         prefer_backup = False
         if clip.kind == "file":
             modified = [r for r in self.restorer.resolutions(clip) if r.status is Status.MODIFIED and r.has_backup]
@@ -169,25 +172,46 @@ class Controller(QObject):
             mime, missing = self.restorer.mime_for(clip, as_file=as_file, prefer_backup_when_modified=prefer_backup)
         except OSError as e:
             log.exception("还原失败")
-            self.notify(f"还原失败：{e}", warning=True)
+            self._tell(f"还原失败：{e}", warning=True)
             return
         if mime is None:
-            self.notify("还原不了：" + _names(missing) + "。原文件找不到，也没有副本。", warning=True)
+            self._tell("还原不了：" + _names(missing) + "。原文件找不到，也没有副本。", warning=True)
             return
-        if missing:
-            self.notify(f"有 {len(missing)} 个找不到，其余的已还原：{_names(missing)}", warning=True)
 
         QGuiApplication.clipboard().setMimeData(mime)
         self.storage.touch(clip.id)
-        target = self.panel.target_hwnd
-        if paste and win32.is_window(target):
-            win32.force_foreground(target)
-            QTimer.singleShot(60, win32.send_ctrl_v)
+        if paste:
+            target = self.panel.target_hwnd
+            self.panel.hide()
+            if missing:
+                self.notify(f"有 {len(missing)} 个找不到，其余的已还原：{_names(missing)}", warning=True)
+            if win32.is_window(target):
+                win32.force_foreground(target)
+                QTimer.singleShot(60, win32.send_ctrl_v)
+            return
+        # 只更新这一条的使用次数，不重新排序：连续复制几条时列表不会跳来跳去
+        self.panel.update_clip(clip.id)
+        if missing:
+            self._tell(f"已复制，但有 {len(missing)} 个找不到：{_names(missing)}", warning=True)
+        else:
+            self._tell("已复制到剪贴板")
+
+    def _tell(self, message: str, warning: bool = False) -> None:
+        """窗口开着就在窗口里提示，否则用托盘通知。"""
+        if self.panel.isVisible():
+            self.panel.show_toast(message, warning)
+        else:
+            self.notify(message, warning)
+
+    def _dialog_parent(self):
+        """对话框显示在主窗口上面（主窗口没开时没有父窗口）。"""
+        return self.panel if self.panel.isVisible() else None
 
     def _ask_version(self, modified: list[Resolution]) -> bool | None:
         """文件复制之后被改过：问用哪个版本。返回 True = 复制时的版本，False = 现在的版本，None = 取消。"""
         box = QMessageBox(QMessageBox.Icon.Question, "InputVault",
-                          f"「{_names([r.entry.name for r in modified])}」在复制之后被修改过。\n\n要用哪个版本？")
+                          f"「{_names([r.entry.name for r in modified])}」在复制之后被修改过。\n\n要用哪个版本？",
+                          parent=self._dialog_parent())
         current = box.addButton("现在的版本", QMessageBox.ButtonRole.AcceptRole)
         old = box.addButton("复制时的版本", QMessageBox.ButtonRole.ActionRole)
         box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
@@ -197,23 +221,23 @@ class Controller(QObject):
             return False
         return True if clicked is old else None
 
+    # 下面几个操作都不主动收起窗口：切到别的程序时，快捷键唤起的窗口会自己收起；从托盘打开的窗口一直留着
+
     def open_location(self, clip: Clip) -> None:
-        self.panel.hide()
         resolutions = self.restorer.resolutions(clip)
         for r in resolutions:
             if r.path:
                 win32.reveal_in_explorer(r.path)
                 return
         if any(r.has_backup for r in resolutions):
-            self.notify("原文件已经不在了。可以按回车把副本粘贴到需要的地方。")
+            self._tell("原文件已经不在了。可以按回车把副本粘贴到需要的地方。")
         else:
-            self.notify("文件已经找不到了，也没有副本。", warning=True)
+            self._tell("文件已经找不到了，也没有副本。", warning=True)
 
     def open_source_app(self, clip: Clip) -> None:
         """切到这条记录的来源程序；程序没开着就启动它。"""
         name = clip.source_app or clip.source_exe
         hwnd = win32.find_app_window(clip.source_exe)
-        self.panel.hide()
         if hwnd:
             win32.show_window(hwnd)
             return
@@ -221,23 +245,22 @@ class Controller(QObject):
         if path and os.path.exists(path):
             os.startfile(path)
         else:
-            self.notify(f"「{name}」没有在运行，也不知道它装在哪里。", warning=True)
+            self._tell(f"「{name}」没有在运行，也不知道它装在哪里。", warning=True)
 
     def save_image(self, clip: Clip) -> None:
-        self.panel.hide()
         source = self.restorer.image_path(clip)
         if source is None:
-            self.notify("这张图片已经被清理掉了。", warning=True)
+            self._tell("这张图片已经被清理掉了。", warning=True)
             return
         default = str(Path.home() / "Pictures" / image_filename(clip))
-        path, _ = QFileDialog.getSaveFileName(None, "图片另存为", default, "PNG 图片 (*.png)")
+        path, _ = QFileDialog.getSaveFileName(self._dialog_parent(), "图片另存为", default, "PNG 图片 (*.png)")
         if path:
             shutil.copyfile(source, path)
+            self._tell(f"已保存：{Path(path).name}")
 
     # ---------- 其他面板操作 ----------
 
     def block_app(self, exe: str, name: str) -> None:
-        self.panel.hide()
         if exe.lower() not in (a.lower() for a in self.config.blacklist_apps):
             self.config.blacklist_apps.append(exe)
         self.typing.reload_config()
@@ -246,14 +269,21 @@ class Controller(QObject):
         count = self.storage.count(exe)
         if count:
             box = QMessageBox(QMessageBox.Icon.Question, "InputVault",
-                              f"以后不再记录「{name}」里复制和输入的内容。\n\n已有的 {count} 条记录要删除吗？")
+                              f"以后不再记录「{name}」里复制和输入的内容。\n\n已有的 {count} 条记录要删除吗？",
+                              parent=self._dialog_parent())
             delete = box.addButton("删除", QMessageBox.ButtonRole.DestructiveRole)
             box.addButton("保留", QMessageBox.ButtonRole.RejectRole)
             box.exec()
             if box.clickedButton() is delete:
                 self.storage.delete_by_exe(exe)
+                self._tell(f"已删除「{name}」的 {count} 条记录，以后也不再记录")
+            else:
+                self._tell(f"以后不再记录「{name}」，已有记录保留")
         else:
-            self.notify(f"以后不再记录「{name}」里复制和输入的内容。")
+            self._tell(f"以后不再记录「{name}」里复制和输入的内容。")
+        if self.panel.isVisible():
+            self.panel.refresh_sidebar()
+            self.panel.refresh()
         self._update_tooltip()
 
     # ---------- 空间 ----------
@@ -273,8 +303,7 @@ class Controller(QObject):
     # ---------- 设置 ----------
 
     def open_settings(self) -> None:
-        self.panel.hide()
-        dialog = SettingsDialog(self.config, self.blobs.total_size, self.clear_attachments)
+        dialog = SettingsDialog(self.config, self.blobs.total_size, self.clear_attachments, self._dialog_parent())
         if dialog.exec():
             self.apply_config(dialog.values())
 

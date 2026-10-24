@@ -80,6 +80,13 @@ class Panel(QWidget):
         self._search_timer.timeout.connect(self.refresh)
         self.search.textChanged.connect(self._search_timer.start)
 
+        self._toast = QLabel(self)
+        self._toast.hide()
+        self._toast_timer = QTimer(self)
+        self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(self._toast.hide)
+        QGuiApplication.instance().applicationStateChanged.connect(self._on_app_state)
+
     # ---------- 布局 ----------
 
     def _build(self, app_icons: AppIcons) -> None:
@@ -242,10 +249,34 @@ class Panel(QWidget):
     def changeEvent(self, event):
         if event.type() == QEvent.Type.WindowStateChange:
             self._apply_margins()
-        elif event.type() == QEvent.Type.ActivationChange:
-            if self._quick and self.isVisible() and not self.isActiveWindow():
-                self.hide()
         super().changeEvent(event)
+
+    def _on_app_state(self, state: Qt.ApplicationState) -> None:
+        # 快捷键唤起的窗口：切到别的程序才收起。打开我们自己的确认框、另存为对话框时整个程序仍是活动的，不收起
+        if state != Qt.ApplicationState.ApplicationActive and self._quick and self.isVisible():
+            self.hide()
+
+    # ---------- 提示 ----------
+
+    def show_toast(self, message: str, warning: bool = False) -> None:
+        """窗口底部居中显示一行提示，过一会儿自动消失。"""
+        self._toast.setText(message)
+        bg = self.t["danger"] if warning else self.t["fg"]
+        self._toast.setStyleSheet(
+            f"background: {bg}; color: {self.t['card']}; border-radius: 10px; padding: 9px 18px; font-size: 14px;"
+        )
+        self._toast.adjustSize()
+        m = 0 if self.isMaximized() else _SHADOW
+        self._toast.move((self.width() - self._toast.width()) // 2, self.height() - m - self._toast.height() - 34)
+        self._toast.show()
+        self._toast.raise_()
+        self._toast_timer.start(3000 if warning else 1600)
+
+    def update_clip(self, clip_id: int) -> None:
+        """一条记录的数据变了（比如使用次数），就地刷新，不重新排序。"""
+        clip = self.storage.get(clip_id)
+        if clip is not None and self.list.replace_clip(clip):
+            self._show_current()
 
     def _toggle_maximized(self) -> None:
         self.showNormal() if self.isMaximized() else self.showMaximized()

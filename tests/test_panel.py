@@ -19,7 +19,9 @@ from inputvault.ui.theme import LIGHT  # noqa: E402
 _app = QApplication.instance() or QApplication([])
 
 
-class FilterBarTest(unittest.TestCase):
+class _PanelCase(unittest.TestCase):
+    """共用的准备工作：三条记录 + 一个没显示出来的主窗口。这个类本身没有测试用例。"""
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         tmp = Path(self._tmp.name)
@@ -39,6 +41,8 @@ class FilterBarTest(unittest.TestCase):
     def bar_visible(self) -> bool:
         return not self.panel.filter_bar.isHidden()
 
+
+class FilterBarTest(_PanelCase):
     def test_hidden_when_everything_is_default(self):
         self.assertFalse(self.bar_visible())
         self.assertEqual(self.panel.list_count.text(), "3 条")
@@ -78,6 +82,25 @@ class FilterBarTest(unittest.TestCase):
                          ("all", None, "time", False, ""))
         self.assertEqual(p.list_count.text(), "3 条")
         self.assertEqual(p.list_title.text(), "全部记录")
+
+
+class CopyFeedbackTest(_PanelCase):
+    def clips_in_list(self):
+        return [self.panel.list.item(i).data(256) for i in self.panel.list.clip_rows()]
+
+    def test_copy_updates_in_place_without_reordering(self):
+        before = [c.id for c in self.clips_in_list()]
+        oldest = self.clips_in_list()[-1]
+        self.db.touch(oldest.id, now=999)  # 复制一次：使用次数 +1、最近使用时间变成最新
+        self.panel.update_clip(oldest.id)
+        after = self.clips_in_list()
+        self.assertEqual([c.id for c in after], before)  # 位置不变
+        self.assertEqual(after[-1].use_count, 2)
+
+    def test_toast(self):
+        self.panel.show_toast("已复制到剪贴板")
+        self.assertFalse(self.panel._toast.isHidden())
+        self.assertEqual(self.panel._toast.text(), "已复制到剪贴板")
 
 
 if __name__ == "__main__":
