@@ -124,6 +124,17 @@ def window_stylesheet(t: dict[str, str]) -> str:
         border-radius: 6px; padding: 2px 10px; font-size: 13px;
     }}
     QLabel#infoKey {{ color: {t['muted']}; }}
+    #filterBar {{ background: {t['accent_soft']}; border-radius: 10px; }}
+    QLabel#filterLabel {{ color: {t['accent_text']}; font-weight: 600; padding-right: 2px; }}
+    QToolButton#filterChip {{
+        background: {t['card']}; color: {t['accent_text']}; border: 1px solid {t['search_border']};
+        border-radius: 8px; padding: 3px 8px;
+    }}
+    QToolButton#filterChip:hover {{ border-color: {t['accent']}; }}
+    QPushButton#link {{
+        background: transparent; color: {t['accent_text']}; border: none; padding: 4px 8px; font-weight: 600;
+    }}
+    QPushButton#link:hover {{ text-decoration: underline; }}
     QFrame#divider {{ background: {t['divider']}; max-height: 1px; min-height: 1px; border: none; }}
     QListWidget {{ background: transparent; border: none; outline: none; }}
     QScrollArea#sidebar, #sidebarInner {{ background: transparent; border: none; }}

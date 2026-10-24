@@ -8,7 +8,8 @@ import unittest  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from PySide6.QtCore import QByteArray, QMimeData, QUrl  # noqa: E402
-from PySide6.QtGui import QColor, QGuiApplication, QImage  # noqa: E402
+from PySide6.QtGui import QColor, QImage  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from inputvault.blobs import BlobStore  # noqa: E402
 from inputvault.collector import ClipboardCollector  # noqa: E402
@@ -16,7 +17,8 @@ from inputvault.config import Config  # noqa: E402
 from inputvault.restore import MARKER, Restorer  # noqa: E402
 from inputvault.storage import Storage  # noqa: E402
 
-_app = QGuiApplication.instance() or QGuiApplication([])
+# 用 QApplication（而不是 QGuiApplication）：同一次运行里界面测试也要创建窗口部件
+_app = QApplication.instance() or QApplication([])
 
 
 def file_mime(*paths, cut=False):

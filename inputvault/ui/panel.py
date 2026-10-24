@@ -27,6 +27,7 @@ from ..restore import Restorer
 from ..storage import CATEGORY_KINDS, Clip, Storage
 from .clip_list import ClipList, Thumbnails
 from .detail import DetailPane
+from .filter_bar import FilterBar
 from .icons import AppIcons, G, glyph_icon, tile_pixmap
 from .sidebar import CATEGORY_LABELS, Sidebar
 from .theme import app_icon, window_stylesheet
@@ -175,6 +176,10 @@ class Panel(QWidget):
         header.addWidget(self.direction)
         header.addWidget(self.sort)
         list_layout.addLayout(header)
+        self.filter_bar = FilterBar(t)
+        self.filter_bar.removeRequested.connect(self._remove_condition)
+        self.filter_bar.resetRequested.connect(self.reset_filters)
+        list_layout.addWidget(self.filter_bar)
         self.list = ClipList(t, self.thumbs, self._drag_mime)
         self.list.currentItemChanged.connect(lambda *_: self._show_current())
         self.list.itemDoubleClicked.connect(lambda _item: self._do("paste" if self._can_paste() else "copy"))
@@ -348,10 +353,62 @@ class Panel(QWidget):
             title = f"{self._app_name(self.app_filter)} · {title}"
         self.list_title.setText(title)
         self.list_count.setText(f"{self.storage.count_matching(query, **kwargs)} 条")
+        self.filter_bar.set_conditions(self._conditions(query))
         if clips:
             self.list.select_clip(keep_id, keep_index)
         else:
             self._show_current()
+
+    def _conditions(self, query: str) -> list[tuple[str, str, str]]:
+        """所有不是默认状态的筛选和排序，给“筛选中”提示条显示。"""
+        conditions = []
+        if query.strip():
+            shown = query.strip() if len(query.strip()) <= 12 else query.strip()[:12] + "…"
+            conditions.append(("search", f"搜索：{shown}", f"搜索“{query.strip()}”"))
+        if self.category != "all":
+            label = CATEGORY_LABELS[self.category]
+            conditions.append(("category", f"分类：{label}", f"只看{label}"))
+        if self.app_filter is not None:
+            name = self._app_name(self.app_filter)
+            conditions.append(("app", f"应用：{name}", f"只看{name}里的记录"))
+        if self.order != "time":
+            conditions.append(("order", "按使用次数", "按使用次数排序（默认按时间）"))
+        if self.ascending:
+            text = "最早的在前" if self.order == "time" else "用得最少的在前"
+            conditions.append(("direction", text, f"{text}（默认最新 / 最多的在前）"))
+        return conditions
+
+    def _clear_condition(self, key: str) -> None:
+        if key == "search":
+            self.search.blockSignals(True)
+            self.search.clear()
+            self.search.blockSignals(False)
+        elif key == "category":
+            self.category = "all"
+            self.sidebar.select_category("all")
+        elif key == "app":
+            self.app_filter = None
+            self.sidebar.select_app(None, notify=False)
+            self._update_scope_button()
+        elif key == "order":
+            self.order = "time"
+        elif key == "direction":
+            self.ascending = False
+        self._update_sort_controls()
+
+    def _remove_condition(self, key: str) -> None:
+        self._clear_condition(key)
+        self.refresh_sidebar()  # 刚取消的分类如果是 0 条，在左侧栏里该隐藏了
+        self.refresh()
+        self.search.setFocus()
+
+    def reset_filters(self) -> None:
+        """一键恢复默认：清空搜索词，全部记录、全部应用、按时间最新的在前。"""
+        for key in ("search", "category", "app", "order", "direction"):
+            self._clear_condition(key)
+        self.refresh_sidebar()
+        self.refresh()
+        self.search.setFocus()
 
     def refresh_sidebar(self) -> None:
         self.sidebar.set_counts(self.storage.count(), self.storage.favorite_count(), self.storage.kind_counts())
